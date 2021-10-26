@@ -59,9 +59,7 @@
   },
   "dependencies": {
     "country-flag-icons": "^1.4.10",
-    "lodash": "^4.17.21"
-  },
-  "peerDependencies": {
+    "lodash": "^4.17.21",
     "@emotion/react": "^11.4.1",
     "@emotion/styled": "^11.3.0",
     "@mui/material": "^5.0.0",
