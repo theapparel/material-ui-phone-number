@@ -680,10 +680,10 @@ class MaterialUiPhoneNumber extends React.Component {
                 >
                   <MenuItem onKeyDown={e => {
                     const { keys } = this.props;
-                    const allowKeys = [keys.BACKSPACE, keys.DELETE, keys.SHIFT, keys.SPACE]
+                    const allowedKeys = [keys.BACKSPACE, keys.DELETE, keys.SHIFT, keys.SPACE]
                     // If its a usual 'typing' key, stop propagation so our handleKeyDown input doesn't fire.
                     // That handler is for navigating the menu and this stops it from hijacking.
-                    if ((e.which >= keys.A && e.which <= keys.Z) || allowKeys.includes(e.which)) {
+                    if ((e.which >= keys.A && e.which <= keys.Z) || allowedKeys.includes(e.which)) {
                       e.stopPropagation()
                     }
                  }}>
