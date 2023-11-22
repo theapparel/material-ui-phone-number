@@ -15,6 +15,7 @@ import {
 } from 'lodash';
 import countryData from '../country_data';
 import Item from './Item';
+import { MenuItem } from '@mui/material';
 
 const styles = () => ({
   flagButton: {
@@ -112,6 +113,7 @@ class MaterialUiPhoneNumber extends React.Component {
       );
 
     this.state = {
+      orginalCountries: onlyCountries,
       formattedNumber,
       placeholder: props.placeholder,
       onlyCountries,
@@ -159,8 +161,8 @@ class MaterialUiPhoneNumber extends React.Component {
     const { onlyCountries } = this.state;
 
     // don't include the preferred countries in search
-    const probableCountries = filter(onlyCountries, (country) => startsWith(country.name.toLowerCase(), queryString.toLowerCase()), this);
-    return probableCountries[0];
+    const probableCountries = filter(onlyCountries, (country) =>  country.name.toLowerCase().includes(queryString.toLowerCase()), this);
+    return probableCountries;
   });
 
   getOnlyCountries = (onlyCountriesArray, filteredCountries) => {
@@ -482,31 +484,34 @@ class MaterialUiPhoneNumber extends React.Component {
 
   searchCountry = () => {
     const { queryString, onlyCountries, preferredCountries } = this.state;
-
-    const probableCandidate = this.getProbableCandidate(queryString) || onlyCountries[0];
+    const probableCandidate = this.getProbableCandidate(queryString) || [];
     const probableCandidateIndex = findIndex(onlyCountries, probableCandidate) + preferredCountries.length;
 
     this.scrollTo(this.getElement(probableCandidateIndex), true);
 
-    this.setState({ queryString: '', highlightCountryIndex: probableCandidateIndex });
+    this.setState({ highlightCountryIndex: probableCandidateIndex, onlyCountries: probableCandidate });
   }
 
   handleKeydown = (e) => {
     const {
       anchorEl, highlightCountryIndex, preferredCountries, onlyCountries,
-      queryString, debouncedQueryStingSearcher,
     } = this.state;
     const { keys, disabled } = this.props;
 
-    if (!anchorEl || disabled) return;
+    // Check if the event target is the search input
+    if (e.target.tagName === 'INPUT' && e.target.type === 'search') {
+      console.log(e.target.value);
+      this.handleSearchChange(e.target.value)
+      return;
+    }
 
+    if (!anchorEl || disabled) return;
     // ie hack
     if (e.preventDefault) {
       e.preventDefault();
     } else {
       e.returnValue = false;
     }
-
     const moveHighlight = (direction) => {
       this.setState({
         highlightCountryIndex: this.getHighlightCountryIndex(direction),
@@ -516,7 +521,6 @@ class MaterialUiPhoneNumber extends React.Component {
         ), true);
       });
     };
-
     switch (e.which) {
       case keys.DOWN:
         moveHighlight(1);
@@ -533,11 +537,11 @@ class MaterialUiPhoneNumber extends React.Component {
         }, this.cursorToEnd);
         break;
       default:
-        if ((e.which >= keys.A && e.which <= keys.Z) || e.which === keys.SPACE) {
-          this.setState({
-            queryString: queryString + String.fromCharCode(e.which),
-          }, debouncedQueryStingSearcher);
-        }
+        // if ((e.which >= keys.A && e.which <= keys.Z) || e.which === keys.SPACE) {
+        //   this.setState({
+        //     queryString: queryString + String.fromCharCode(e.which),
+        //   }, debouncedQueryStingSearcher);
+        // }
     }
   }
 
@@ -551,6 +555,16 @@ class MaterialUiPhoneNumber extends React.Component {
       onKeyDown(e);
     }
   }
+
+  handleSearchChange = (searchValue) => {
+    // Logic to filter countries based on the search input
+    const filteredCountries = this.getProbableCandidate(searchValue) || []
+    this.setState({
+      onlyCountries: filteredCountries.length > 0 ? filteredCountries : this.state.orginalCountries,
+      queryString: searchValue,
+    });
+  };
+
 
   checkIfValid = () => {
     const { formattedNumber } = this.state;
@@ -582,7 +596,7 @@ class MaterialUiPhoneNumber extends React.Component {
       formattedNumber = this.formatNumber(inputNumber, countryGuess.format);
     }
 
-    this.setState({ selectedCountry: countryGuess, formattedNumber });
+    this.setState({ formattedNumber });
   };
 
   getDropdownProps = () => {
@@ -675,6 +689,17 @@ class MaterialUiPhoneNumber extends React.Component {
                   open={Boolean(anchorEl)}
                   onClose={() => this.setState({ anchorEl: null })}
                 >
+                  <MenuItem onKeyDown={e => e.stopPropagation()}>
+                    <TextField
+                      placeholder="Search..."
+                      size='small'
+                      value={this.state.queryString}
+                      type="search"
+                      onChange={(e) => this.handleSearchChange(e.target.value)}
+                      fullWidth
+                    />
+                  </MenuItem>
+
                   {!!preferredCountries.length && map(preferredCountries, (country, index) => (
                     <Item
                       key={`preferred_${country.iso2}_${index}`}
@@ -736,26 +761,27 @@ class MaterialUiPhoneNumber extends React.Component {
     } = this.props;
 
     const dropdownProps = this.getDropdownProps();
-
     return (
-      <TextField
-        placeholder={statePlaceholder}
-        value={formattedNumber}
-        className={inputClass}
-        inputRef={this.handleRefInput}
-        error={error || !this.checkIfValid()}
-        onChange={this.handleInput}
-        onClick={this.handleInputClick}
-        onFocus={this.handleInputFocus}
-        onBlur={this.handleInputBlur}
-        onKeyDown={this.handleInputKeyDown}
-        type="tel"
-        InputProps={{
-          ...dropdownProps,
-          ...InputProps,
-        }}
-        {...restProps}
-      />
+      <>
+        <TextField
+          placeholder={statePlaceholder}
+          value={formattedNumber}
+          className={inputClass}
+          inputRef={this.handleRefInput}
+          error={error || !this.checkIfValid()}
+          onChange={this.handleInput}
+          onClick={this.handleInputClick}
+          onFocus={this.handleInputFocus}
+          onBlur={this.handleInputBlur}
+          onKeyDown={this.handleInputKeyDown}
+          type="tel"
+          InputProps={{
+            ...dropdownProps,
+            ...InputProps,
+          }}
+          {...restProps}
+        />
+      </>
     );
   }
 }
