@@ -656,6 +656,7 @@ class MaterialUiPhoneNumber extends React.Component {
                   aria-label="Select country"
                   onClick={(e) => {
                     this.setState({ anchorEl: e.currentTarget }, () => {
+                      // Have to use timeout because the ref is null because its a dynamic input in a modal.
                       setTimeout(() =>  this.searchInputRef.current.focus(), 100)
                     })
                   }}
@@ -680,6 +681,8 @@ class MaterialUiPhoneNumber extends React.Component {
                   <MenuItem onKeyDown={e => {
                     const { keys } = this.props;
                     const allowKeys = [keys.BACKSPACE, keys.DELETE, keys.SHIFT, keys.SPACE]
+                    // If its a usual 'typing' key, stop propagation so our handleKeyDown input doesn't fire.
+                    // That handler is for navigating the menu and this stops it from hijacking.
                     if ((e.which >= keys.A && e.which <= keys.Z) || allowKeys.includes(e.which)) {
                       e.stopPropagation()
                     }
