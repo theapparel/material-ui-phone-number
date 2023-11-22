@@ -11,7 +11,7 @@ import NativeSelect from '@mui/material/NativeSelect';
 import withStyles from '@mui/styles/withStyles';
 import {
   some, find, reduce, map, filter, includes, findIndex,
-  head, tail, debounce, memoize, trim, startsWith, isString,
+  head, tail, memoize, trim, startsWith, isString,
 } from 'lodash';
 import countryData from '../country_data';
 import Item from './Item';
@@ -125,7 +125,6 @@ class MaterialUiPhoneNumber extends React.Component {
       highlightCountryIndex: countryGuessIndex,
       queryString: '',
       freezeSelection: false,
-      debouncedQueryStingSearcher: debounce(this.searchCountry, 100),
       anchorEl: null,
     };
   }
@@ -413,7 +412,7 @@ class MaterialUiPhoneNumber extends React.Component {
   }
 
   handleFlagItemClick = (country) => {
-    const { formattedNumber, selectedCountry, onlyCountries } = this.state;
+    const { formattedNumber, selectedCountry, onlyCountries, originalCountries } = this.state;
     const { onChange } = this.props;
 
     const currentSelectedCountry = selectedCountry;
@@ -429,8 +428,8 @@ class MaterialUiPhoneNumber extends React.Component {
       selectedCountry: nextSelectedCountry,
       freezeSelection: true,
       formattedNumber: newFormattedNumber,
-     queryString: '',
-     onlyCountries: this.state.originalCountries
+      queryString: '',
+      onlyCountries: originalCountries
     }, () => {
       this.cursorToEnd();
       if (onChange) {
@@ -484,16 +483,6 @@ class MaterialUiPhoneNumber extends React.Component {
     }
 
     return highlightCountryIndex;
-  }
-
-  searchCountry = () => {
-    const { queryString, onlyCountries, preferredCountries } = this.state;
-    const probableCandidate = this.getProbableCandidate(queryString) || [];
-    const probableCandidateIndex = findIndex(onlyCountries, probableCandidate) + preferredCountries.length;
-
-    this.scrollTo(this.getElement(probableCandidateIndex), true);
-
-    this.setState({ highlightCountryIndex: probableCandidateIndex, onlyCountries: probableCandidate });
   }
 
   handleKeydown = (e) => {
@@ -587,12 +576,13 @@ class MaterialUiPhoneNumber extends React.Component {
       formattedNumber = this.formatNumber(inputNumber, countryGuess.format);
     }
 
-    this.setState({ formattedNumber });
+    this.setState({ selectedCountry: countryGuess, formattedNumber });
   };
 
   getDropdownProps = () => {
     const {
-      selectedCountry, anchorEl, preferredCountries, onlyCountries,
+      selectedCountry, anchorEl, preferredCountries, onlyCountries, originalCountries,
+      queryString
     } = this.state;
 
     const {
@@ -679,7 +669,13 @@ class MaterialUiPhoneNumber extends React.Component {
                   id="country-menu"
                   anchorEl={anchorEl}
                   open={Boolean(anchorEl)}
-                  onClose={() => this.setState({ anchorEl: null, queryString: '', onlyCountries: this.state.originalCountries })}
+                  onClose={() =>
+                    this.setState({
+                      anchorEl: null,
+                      queryString: '',
+                      onlyCountries: originalCountries
+                    })
+                  }
                 >
                   <MenuItem onKeyDown={e => {
                     const { keys } = this.props;
@@ -692,7 +688,7 @@ class MaterialUiPhoneNumber extends React.Component {
                       inputRef={this.searchInputRef}
                       placeholder="Search..."
                       size='small'
-                      value={this.state.queryString}
+                      value={queryString}
                       type="search"
                       onChange={(e) => this.handleSearchChange(e.target.value)}
                       fullWidth
