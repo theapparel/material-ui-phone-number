@@ -11,10 +11,11 @@ import NativeSelect from '@mui/material/NativeSelect';
 import withStyles from '@mui/styles/withStyles';
 import {
   some, find, reduce, map, filter, includes, findIndex,
-  head, tail, debounce, memoize, trim, startsWith, isString,
+  head, tail, memoize, trim, startsWith, isString,
 } from 'lodash';
 import countryData from '../country_data';
 import Item from './Item';
+import { MenuItem } from '@mui/material';
 
 const styles = () => ({
   flagButton: {
@@ -73,6 +74,8 @@ class MaterialUiPhoneNumber extends React.Component {
 
   constructor(props) {
     super(props);
+    this.searchInputRef = React.createRef();
+
     let filteredCountries = countryData.allCountries;
 
     if (props.disableAreaCodes) filteredCountries = this.deleteAreaCodes(filteredCountries);
@@ -112,6 +115,7 @@ class MaterialUiPhoneNumber extends React.Component {
       );
 
     this.state = {
+      originalCountries: onlyCountries,
       formattedNumber,
       placeholder: props.placeholder,
       onlyCountries,
@@ -121,7 +125,6 @@ class MaterialUiPhoneNumber extends React.Component {
       highlightCountryIndex: countryGuessIndex,
       queryString: '',
       freezeSelection: false,
-      debouncedQueryStingSearcher: debounce(this.searchCountry, 100),
       anchorEl: null,
     };
   }
@@ -159,8 +162,8 @@ class MaterialUiPhoneNumber extends React.Component {
     const { onlyCountries } = this.state;
 
     // don't include the preferred countries in search
-    const probableCountries = filter(onlyCountries, (country) => startsWith(country.name.toLowerCase(), queryString.toLowerCase()), this);
-    return probableCountries[0];
+    const probableCountries = filter(onlyCountries, (country) =>  country.name.toLowerCase().includes(queryString.toLowerCase()), this);
+    return probableCountries;
   });
 
   getOnlyCountries = (onlyCountriesArray, filteredCountries) => {
@@ -409,7 +412,7 @@ class MaterialUiPhoneNumber extends React.Component {
   }
 
   handleFlagItemClick = (country) => {
-    const { formattedNumber, selectedCountry, onlyCountries } = this.state;
+    const { formattedNumber, selectedCountry, onlyCountries, originalCountries } = this.state;
     const { onChange } = this.props;
 
     const currentSelectedCountry = selectedCountry;
@@ -425,6 +428,8 @@ class MaterialUiPhoneNumber extends React.Component {
       selectedCountry: nextSelectedCountry,
       freezeSelection: true,
       formattedNumber: newFormattedNumber,
+      queryString: '',
+      onlyCountries: originalCountries
     }, () => {
       this.cursorToEnd();
       if (onChange) {
@@ -480,33 +485,19 @@ class MaterialUiPhoneNumber extends React.Component {
     return highlightCountryIndex;
   }
 
-  searchCountry = () => {
-    const { queryString, onlyCountries, preferredCountries } = this.state;
-
-    const probableCandidate = this.getProbableCandidate(queryString) || onlyCountries[0];
-    const probableCandidateIndex = findIndex(onlyCountries, probableCandidate) + preferredCountries.length;
-
-    this.scrollTo(this.getElement(probableCandidateIndex), true);
-
-    this.setState({ queryString: '', highlightCountryIndex: probableCandidateIndex });
-  }
-
   handleKeydown = (e) => {
     const {
       anchorEl, highlightCountryIndex, preferredCountries, onlyCountries,
-      queryString, debouncedQueryStingSearcher,
     } = this.state;
     const { keys, disabled } = this.props;
 
     if (!anchorEl || disabled) return;
-
     // ie hack
     if (e.preventDefault) {
       e.preventDefault();
     } else {
       e.returnValue = false;
     }
-
     const moveHighlight = (direction) => {
       this.setState({
         highlightCountryIndex: this.getHighlightCountryIndex(direction),
@@ -516,7 +507,6 @@ class MaterialUiPhoneNumber extends React.Component {
         ), true);
       });
     };
-
     switch (e.which) {
       case keys.DOWN:
         moveHighlight(1);
@@ -532,12 +522,6 @@ class MaterialUiPhoneNumber extends React.Component {
           anchorEl: null,
         }, this.cursorToEnd);
         break;
-      default:
-        if ((e.which >= keys.A && e.which <= keys.Z) || e.which === keys.SPACE) {
-          this.setState({
-            queryString: queryString + String.fromCharCode(e.which),
-          }, debouncedQueryStingSearcher);
-        }
     }
   }
 
@@ -551,6 +535,16 @@ class MaterialUiPhoneNumber extends React.Component {
       onKeyDown(e);
     }
   }
+
+  handleSearchChange = (searchValue) => {
+    // Logic to filter countries based on the search input
+    const filteredCountries = this.getProbableCandidate(searchValue) || []
+    this.setState({
+      onlyCountries: filteredCountries.length > 0 ? filteredCountries : this.state.originalCountries,
+      queryString: searchValue,
+    });
+  };
+
 
   checkIfValid = () => {
     const { formattedNumber } = this.state;
@@ -587,7 +581,8 @@ class MaterialUiPhoneNumber extends React.Component {
 
   getDropdownProps = () => {
     const {
-      selectedCountry, anchorEl, preferredCountries, onlyCountries,
+      selectedCountry, anchorEl, preferredCountries, onlyCountries, originalCountries,
+      queryString
     } = this.state;
 
     const {
@@ -601,10 +596,7 @@ class MaterialUiPhoneNumber extends React.Component {
       return localizedA.localeCompare(localizedB);
     });
 
-    const isSelected = (country) => Boolean(selectedCountry && selectedCountry.dialCode === country.dialCode);
-
     const FlagComponent = Flags[selectedCountry.iso2.toUpperCase()];
-
     const dropdownProps = disableDropdown ? {} : {
       startAdornment: (
         <InputAdornment
@@ -662,7 +654,12 @@ class MaterialUiPhoneNumber extends React.Component {
                   className={classes.flagButton}
                   aria-owns={anchorEl ? 'country-menu' : null}
                   aria-label="Select country"
-                  onClick={(e) => this.setState({ anchorEl: e.currentTarget })}
+                  onClick={(e) => {
+                    this.setState({ anchorEl: e.currentTarget }, () => {
+                      // Have to use timeout because the ref is null because its a dynamic input in a modal.
+                      setTimeout(() =>  this.searchInputRef.current.focus(), 100)
+                    })
+                  }}
                   aria-haspopup
                 >
                   {Boolean(FlagComponent) && <FlagComponent className="margin" />}
@@ -673,15 +670,41 @@ class MaterialUiPhoneNumber extends React.Component {
                   id="country-menu"
                   anchorEl={anchorEl}
                   open={Boolean(anchorEl)}
-                  onClose={() => this.setState({ anchorEl: null })}
+                  onClose={() =>
+                    this.setState({
+                      anchorEl: null,
+                      queryString: '',
+                      onlyCountries: originalCountries
+                    })
+                  }
                 >
+                  <MenuItem onKeyDown={e => {
+                    const { keys } = this.props;
+                    const allowedKeys = [keys.BACKSPACE, keys.DELETE, keys.SHIFT, keys.SPACE]
+                    // If its a usual 'typing' key, stop propagation so our handleKeyDown input doesn't fire.
+                    // That handler is for navigating the menu and this stops it from hijacking.
+                    if ((e.which >= keys.A && e.which <= keys.Z) || allowedKeys.includes(e.which)) {
+                      e.stopPropagation()
+                    }
+                 }}>
+                    <TextField
+                      inputRef={this.searchInputRef}
+                      placeholder="Search..."
+                      size='small'
+                      value={queryString}
+                      type="search"
+                      onChange={(e) => this.handleSearchChange(e.target.value)}
+                      fullWidth
+                      autoFocus
+                    />
+                  </MenuItem>
+
                   {!!preferredCountries.length && map(preferredCountries, (country, index) => (
                     <Item
                       key={`preferred_${country.iso2}_${index}`}
                       itemRef={(node) => {
                         this.flags[`flag_no_${index}`] = node;
                       }}
-                      selected={isSelected(country)}
                       onClick={() => this.handleFlagItemClick(country)}
                       name={country.name}
                       iso2={country.iso2}
@@ -699,7 +722,6 @@ class MaterialUiPhoneNumber extends React.Component {
                       itemRef={(node) => {
                         this.flags[`flag_no_${index}`] = node;
                       }}
-                      selected={isSelected(country)}
                       onClick={() => this.handleFlagItemClick(country)}
                       name={country.name}
                       iso2={country.iso2}
@@ -736,26 +758,27 @@ class MaterialUiPhoneNumber extends React.Component {
     } = this.props;
 
     const dropdownProps = this.getDropdownProps();
-
     return (
-      <TextField
-        placeholder={statePlaceholder}
-        value={formattedNumber}
-        className={inputClass}
-        inputRef={this.handleRefInput}
-        error={error || !this.checkIfValid()}
-        onChange={this.handleInput}
-        onClick={this.handleInputClick}
-        onFocus={this.handleInputFocus}
-        onBlur={this.handleInputBlur}
-        onKeyDown={this.handleInputKeyDown}
-        type="tel"
-        InputProps={{
-          ...dropdownProps,
-          ...InputProps,
-        }}
-        {...restProps}
-      />
+      <>
+        <TextField
+          placeholder={statePlaceholder}
+          value={formattedNumber}
+          className={inputClass}
+          inputRef={this.handleRefInput}
+          error={error || !this.checkIfValid()}
+          onChange={this.handleInput}
+          onClick={this.handleInputClick}
+          onFocus={this.handleInputFocus}
+          onBlur={this.handleInputBlur}
+          onKeyDown={this.handleInputKeyDown}
+          type="tel"
+          InputProps={{
+            ...dropdownProps,
+            ...InputProps,
+          }}
+          {...restProps}
+        />
+      </>
     );
   }
 }
@@ -850,6 +873,9 @@ MaterialUiPhoneNumber.defaultProps = {
     A: 65,
     Z: 90,
     SPACE: 32,
+    BACKSPACE: 8,
+    DELETE: 46,
+    SHIFT: 16
   },
 };
 
