@@ -11,5 +11,5 @@
       "max-len": 0,
       "react/jsx-props-no-spreading": 0
     },
-    "parser": "babel-eslint"
+    "parser": "@babel/eslint-parser"
 }
